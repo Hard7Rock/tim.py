@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
+import pexpect
 """Назва:dev_specific - містить функції по визначенні обладнання до якого підключається user"""
 
+def what_device(instance):
+	"""Визначення типу обладнання по команді sh version"""
+	instance.expect()
 
-def what_device():
-	#Визначення типу обладнання по команді sh version
 	log_user 0
 stty rows 1000
 expect -re ">|#$" {send "show version\r"}
 expect {
 	-re "(C|c)isco WS-C.*processor" {log_user 1; return "cisco"}
 	-re "Marvell" {log_user 1; return "ec"}
-
-
 
 	return 0
 

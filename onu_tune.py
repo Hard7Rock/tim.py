@@ -41,25 +41,35 @@ return 1
 
 def Verify(args):
     #перевірка валідності вхідних данних
-    #ip_olt
+    #ip_olti
+    isOk = True
     ip_olt =argv[1]
-    if match("\d+\.\d+\.\d+\.\d+",ip_olt)==None:
-        print "Невірно введена ІР адреса OLT\n"; exit 1;}
+    if match("^\d+\.\d+\.\d+\.\d+$",ip_olt)==None:
+        print "Невірно введена ІР адреса OLT\n";
+        isOk = False
     #epon_number
     epon = argv[2]
-    if {[regexp {\d/[1-9](\d)?} $epon ]!=1} {send_user "Невірно введений номер EPON: наприклад 0/3\n"; exit 1}
+    if match("^\d/[1-9](\d)?$",epon) == None:# перевірити на правильність?
+        print "Невірно введений номер EPON: наприклад 0/3\n"
+        isOk = False
 
-#onu_mac
-onu_mac = argv[3]
-if {[regexp {[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}} $onu_mac]!=1} {send_user "Невірний формат МАC адреси ONU: приклад fa3a.f7c5.f7c3\n"; exit 1}
+    #onu_mac
+    onu_mac = argv[3]
+    if match("^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$",onu_mac) == None: 
+        print "Невірний формат МАC адреси ONU: приклад fa3a.f7c5.f7c3\n"
+        isOk = False
 
-#vlan  патерн
-abon_vlan = argv[4]
-if {[regexp {\d{4}} $abon_vlan]!=1} {send_user "Невірно введений абонентський VLAN: приклад 1954\n"; exit 1}
+    #vlan  патерн
+    abon_vlan = argv[4]
+    if match("\d{4}" abon_vlan) == None:
+        print "Невірно введений абонентський VLAN: приклад 1954\n"
+        isOk = False 
 
-abon_descr = argv[5]
+    abon_descr = argv[5]
+    IPTV_plus = argv[6]
 
-IPTV_plus = argv[6]
+    return isOk
+
 
 #введення налаштувань
 print "\n\n = Привязка ONU по MAC ="

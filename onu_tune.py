@@ -159,4 +159,13 @@ print "\n\n = Налаштування успішно завершене! =\n"
 
 exit 0;
 #Налаштування завершене
-'''
+
+if Verify(argv)==True:
+    Connect()
+    Bind()
+    Config()
+    Check()
+    Exit()
+else:
+    exit()
+

@@ -1,0 +1,174 @@
+# -*- coding: utf-8 -*-
+"""Скрипт для налаштування ONU через модуль pexpect"""
+#version 1.1
+#author: hard
+#contrib: silk (pretty output)
+#moral support: deftones, den4ik, ihor
+
+#Скрипт налаштування ONU
+
+#Назва:Блок захопленя логіна і пароля
+#Мета:	Стандартизувати процес авторизації
+import sys
+
+'''
+proc GetAllAuthData {} {
+	send_user "Username: "
+	expect_user -re "(.*)\n"
+	set user $expect_out(1,string)
+	send_user "Password: "
+	set pass [GetPass]
+	send_user "\nEnable: "
+	set ena_pass [GetPass]
+	return [list $user $pass $ena_pass]
+}
+
+proc GetPass {} {
+stty -echo
+expect_user -re "(.*)\n"
+stty echo
+return $expect_out(1,string)
+}
+
+proc Autentification { ip AllAuthData } {
+	global spawn_id
+	set login [lindex $AllAuthData 0];
+	set pass [lindex $AllAuthData 1];
+	set ena_pass [lindex $AllAuthData 2];
+
+	spawn telnet $ip
+	expect "Username:" {send "$login\r"}
+	expect "*assword:" {send "$pass\r"}
+	expect -re "^(.*)>|#$" {set dev_names $expect_out(1,string);send "enable\r"}
+	expect "*assword:" {send "$ena_pass\r"}
+	return $dev_names
+}
+
+'''
+#exp_internal 1
+#log_user 1
+#if { [llength $argv] < 5 } {
+print "\nВикористання onu_tune: expect onu_tune ip_olt epon_port onu_mac abon_vlan abon_descr add_iptv\n\
+ip_olt - ip адреса OLT в форматі X.X.X.X\n\
+epon_port - номер EPON в форматі X/X\n\
+onu_mac - mac ONU в форматі xxxx.xxxx.xxxx\n\
+abon_vlan - номер абоненського VLAN\'a\n\
+abon_descr - адреса проживання абонента: наприклад Kalinina.18\n\
+add_iptv - прапор налаштування IPTV на ONU\n\n";
+#exit 1; }
+
+'''
+#перевірка валідності вхідних данних
+#ip_olt
+ip_olt =argv[1]
+if {[regexp {\d+\.\d+\.\d+\.\d+} $ip_olt a]} { set $ip_olt a;} else {send_user "Невірно введена ІР адреса OLT\n"; exit 1;}
+
+#epon_number
+epon = argv[2]
+if {[regexp {\d/[1-9](\d)?} $epon ]!=1} {send_user "Невірно введений номер EPON: наприклад 0/3\n"; exit 1}
+
+#onu_mac
+onu_mac = argv[3]
+if {[regexp {[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}} $onu_mac]!=1} {send_user "Невірний формат МАC адреси ONU: приклад fa3a.f7c5.f7c3\n"; exit 1}
+
+#vlan  патерн
+abon_vlan = argv[4]
+if {[regexp {\d{4}} $abon_vlan]!=1} {send_user "Невірно введений абонентський VLAN: приклад 1954\n"; exit 1}
+
+abon_descr = argv[5]
+
+IPTV_plus = argv[6]
+
+
+set AllAuthData [GetAllAuthData]
+Autentification $ip_olt $AllAuthData
+
+#введення налаштувань
+send_user -- "\n\n = Привязка ONU по MAC ="
+expect "GP*#" { send "config\r" } #config режим
+expect "*config#" { send "interface epon $epon\r" }	        #Вхід у налаштування epon
+expect -re "#$" { send "epon bind-onu mac $onu_mac\r" }	        #Привязка ONU по MAC
+expect -re "#$" { send "exit\r" }
+expect -re "#$" { send "exit\r" }	#Вихід з режиму конфігурації
+
+set lid 0
+set timeout 1;
+
+while {$lid==0} {
+    #По таймауту поновлюється посил
+    expect timeout {
+        send "show epon active-onu mac-address $onu_mac\r";
+        send_user "\n\n = Шукаємо чи привязалась ONU =\n";
+    }
+    expect -re "EPON$epon:\(\[1-9]\[0-9]?)" {
+        send_user "\n\n = ONU привязалась до LID: $expect_out(1,string) =";
+        set lid $expect_out(1,string); break;
+    }
+	set timeout 5;
+}
+
+
+send_user -- "\n\n = Норми рівнів сигналу: =\nІ - не вимірюється через надто потужний сигнал;\
+\nІІ - 15-17 dBm\
+\nIII - 22-24 dBm\n"
+
+set timeout 5;
+
+send_user -- " \n = Перевірка сили сигналу ONU -> OLT, таймаут $timeout сек. =\n"
+
+sleep $timeout
+
+expect -re ".*GP.*\#" {send "show epon optical-transceiver-diagnosis interface epon $epon:$lid\r"}
+
+expect -re ".*GP.*\#" {send "\rshow epon interface EPON $epon:$lid onu ctc optical-transceiver-diagnosis\r"}
+send_user -- " \n\n = Перевірка сили сигналу OLT -> ONU, таймаут $timeout сек. ="
+#expect -re "\(-?\\d+\\.\\d\)" {set RxPower $expect_out(1,string)}
+#send_user "RxPower: EPON$epon:$lid = $RxPower dBm"
+
+#Заходимо в режим конфігурації
+expect  -re "#$" {send "config\r"}
+
+#Налаштовуємо базу VLAN
+send_user -- "\n\n = Налаштовуємо VLAN =\n"
+expect -re "config#$" {send "vlan $abon_vlan\r"}
+expect -gl "*vlan$abon_vlan#" {send "exit\r"}
+
+#Заходимо в налаштування порта gi0/3
+expect -re "#$" {send "interface gi 0/3\r"}
+send_user -- "\n\n = Налаштовуємо порти =\n"
+
+#Прокидка VLAN на gi0/3
+expect -re "#$" {send "switchport trunk vlan-allowed add $abon_vlan\r"}
+expect -re "#$" {send "exit\r"}
+
+#Вхід в налаштування EPON
+expect -re "#$" {send "interface epon $epon\r"}
+expect -re "#$" {send "switchport trunk vlan-allowed add $abon_vlan\r"}	#прокидка vlan на epon
+#Вихід з налаштувань EPON
+expect -re "#$" {send "exit\r"}
+
+
+#Якщо ONU активна - налаштовуємо
+expect -re "#$" {send "interface epon $epon:$lid\r"}				#Заходимо на ONU
+send_user -- "\n\n = Налаштовуємо ONU =\n"
+expect -re "#$" {send "description \$.$abon_descr\r"}				#Заповнюємо опис
+expect -re "#$" {send "epon onu port 1 ctc vlan mode tag $abon_vlan\r"}		#Прокидаємо VLAN на ONU
+
+#Налаштування ONU на мультикаст
+if {$IPTV_plus=="add_iptv"} {
+send_user -- "\n\n = Налаштовуємо мультикаст для IPTV =\n";
+expect -re "#$" {send "epon onu port 1 ctc mcst tag-stripe enable\r"}
+expect -re "#$" {send "epon onu port 1 ctc mcst mc-vlan add 4001\r"}
+}
+
+expect -re "#$" {send "exit\r";}    					#Вихід з налаштувань ONU
+expect -re "GP_.*#" {send "exit\r";}    				#Вихід з режиму конфігурації
+expect -re "GP_.*#" {send "write\r";}					#Збереження налаштувань
+send_user -- "\n\n = Зберігаємо налаштування... =\n"
+expect -re "OK!.*GP_.*#" {send "exit";}
+
+send_user -- "\n\n = Налаштування успішно завершене! =\n"
+
+exit 0;
+#Налаштування завершене
+'''

@@ -2,10 +2,9 @@
 import pexpect
 """Назва:dev_specific - містить функції по визначенні обладнання до якого підключається user"""
 
-def what_device(instance):
-	"""Визначення типу обладнання по команді sh version"""
-	instance.expect()
 
+def what_device():
+	"""Визначення типу обладнання по команді sh version"""
 	log_user 0
 stty rows 1000
 expect -re ">|#$" {send "show version\r"}

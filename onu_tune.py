@@ -11,21 +11,23 @@
 #Мета:	Стандартизувати процес авторизації
 from sys import argv
 from re import match
+from getpass import getpass, getuser
+import pexpect
+
 arguments = argv[1:]
 
-proc Autentification { ip AllAuthData } {
-	global spawn_id
-	set login [lindex $AllAuthData 0];
-	set pass [lindex $AllAuthData 1];
-	set ena_pass [lindex $AllAuthData 2];
-
-	spawn telnet $ip
-	expect "Username:" {send "$login\r"}
-	expect "*assword:" {send "$pass\r"}
+def Connect(ip)
+	login = getuser()
+    password = getpass(promt = "Password: ")
+    ena_pass = getpass(promt = "Ena pass:")
+	spawn =  pexpect.spawn("telnet "+ ip)
+	spawn.expect("Username:")
+    spawn.sendline(login)
+    spawn.expect( "P|password:")
+    spawn.sendline(password)
 	expect -re "^(.*)>|#$" {set dev_names $expect_out(1,string);send "enable\r"}
 	expect "*assword:" {send "$ena_pass\r"}
 	return $dev_names
-}
 
 #exp_internal 1
 #log_user 1
@@ -55,7 +57,7 @@ def Verify(args):
 
     #onu_mac
     onu_mac = argv[3]
-    if match("^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$",onu_mac) == None: 
+    if match("^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$",onu_mac) == None:
         print "Невірний формат МАC адреси ONU: приклад fa3a.f7c5.f7c3\n"
         isOk = False
 
@@ -63,7 +65,7 @@ def Verify(args):
     abon_vlan = argv[4]
     if match("\d{4}" abon_vlan) == None:
         print "Невірно введений абонентський VLAN: приклад 1954\n"
-        isOk = False 
+        isOk = False
 
     abon_descr = argv[5]
     IPTV_plus = argv[6]
